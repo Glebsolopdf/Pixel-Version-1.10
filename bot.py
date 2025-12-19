@@ -4189,44 +4189,11 @@ async def top_users_all_chats_command(message: Message):
         footer = f"\n💬 <b>Всего сообщений: {total_messages}</b>"
         text_message = header + "\n".join(lines) + footer
         
-        # Генерируем график активности по дням
+        # Генерируем график топ пользователей
         try:
-            # Формируем данные за последние N дней, заполняя пропущенные дни нулями
-            # Сначала получаем статистику из базы (может быть меньше дней, если не все дни активны)
-            daily_stats = await db.get_daily_stats(chat.id, days)
-            
-            # Создаем словарь для быстрого доступа
-            stats_dict = {}
-            if daily_stats:
-                stats_dict = {stat['date']: stat['message_count'] for stat in daily_stats}
-            
-            # Формируем данные за ВСЕ последние N дней, даже если в некоторые дни не было сообщений
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            daily_data = []
-            for i in range(days - 1, -1, -1):
-                day = today - timedelta(days=i)
-                date_str = day.strftime('%Y-%m-%d')
-                label = day.strftime('%d.%m')
-                count = stats_dict.get(date_str, 0)
-                daily_data.append({'label': label, 'count': count})
-            
-            # Убеждаемся, что у нас действительно 60 дней
-            if len(daily_data) != days:
-                logger.warning(f"Ожидалось {days} дней, но получили {len(daily_data)} дней для чата {chat.id}")
-                # Если что-то пошло не так, создаем заново
-                daily_data = []
-                for i in range(days - 1, -1, -1):
-                    day = today - timedelta(days=i)
-                    date_str = day.strftime('%Y-%m-%d')
-                    label = day.strftime('%d.%m')
-                    count = stats_dict.get(date_str, 0)
-                    daily_data.append({'label': label, 'count': count})
-            
-            # Всегда создаем график, даже если данных мало
-            title = f"Активность по дням"
+            title = f"Топ активных участников за {days} дней"
             subtitle = f"За последние {days} дней — этот чат"
-            chart_buf = generate_activity_chart(daily_data, title=title, subtitle=subtitle, 
-                                               x_label="Дата", is_hourly=False)
+            chart_buf = await generate_top_chart(top_users, title=title, subtitle=subtitle, bot_instance=bot)
             
             # Отправляем график с текстовым списком в caption
             try:
@@ -4236,7 +4203,7 @@ async def top_users_all_chats_command(message: Message):
                 
                 # Формируем параметры для отправки
                 photo_params = {
-                    'photo': types.input_file.BufferedInputFile(chart_bytes, filename="topall_days.png"),
+                    'photo': types.input_file.BufferedInputFile(chart_bytes, filename="topall_users.png"),
                     'caption': text_message,
                     'parse_mode': ParseMode.HTML,
                     'disable_web_page_preview': True
@@ -4269,7 +4236,7 @@ async def top_users_all_chats_command(message: Message):
                 else:
                     raise photo_error
         except Exception as e:
-            logger.error(f"Ошибка при генерации графика активности для /topall: {e}")
+            logger.error(f"Ошибка при генерации графика топ участников для /topall: {e}")
             # Fallback на текстовый формат
             try:
                 # Формируем параметры для отправки текста
